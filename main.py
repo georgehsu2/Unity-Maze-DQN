@@ -16,7 +16,7 @@ import torch.types
 unity_env = UnityEnvironment(file_name="C:/Users/user/Desktop/Games/8_21_3", no_graphics=False)
 env = UnityToGymWrapper(unity_env, allow_multiple_obs=True)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+#test
 # 訓練參數
 BATCH_SIZE = 32
 LR = 0.01
