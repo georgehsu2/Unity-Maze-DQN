@@ -1,72 +1,111 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-import numpy as np
 import numpy as np
 from mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 
-# 定義 DQN 和 Net 類別
-class Net(nn.Module):
-    def __init__(self, ):
-        super(Net, self).__init__()
-        self.fc1 = nn.Linear(N_STATES, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.out = nn.Linear(128, N_ACTIONS)
+# 定义obs_to_array函数
+def obs_to_array(coordinates):
+    if isinstance(coordinates, list) and len(coordinates) == 1:
+        coordinates = coordinates[0]
+    coordinates = np.array(coordinates)
+    
+    agent = coordinates[:2]
+    goal = coordinates[2:4]
+    walls = coordinates[4:]
+    
+    maze = np.zeros((13, 13), dtype=int)
+    
+    def coord_to_index(x, z):
+        x_idx = int(np.round((x + 6) * 12 / 12))
+        z_idx = 12 - int(np.round((z + 6) * 12 / 12))
+        return max(0, min(12, x_idx)), max(0, min(12, z_idx))
+    
+    for i in range(0, len(walls), 2):
+        if i + 1 < len(walls):
+            x, z = walls[i], walls[i+1]
+            idx_x, idx_z = coord_to_index(x, z)
+            maze[idx_z, idx_x] = 3
+    
+    agent_x, agent_z = coord_to_index(agent[0], agent[1])
+    maze[agent_z, agent_x] = 1
+    
+    goal_x, goal_z = coord_to_index(goal[0], goal[1])
+    maze[goal_z, goal_x] = 2
+    
+    maze[0, :] = maze[-1, :] = maze[:, 0] = maze[:, -1] = 3
+    
+    return maze
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-
-        action_value = self.out(x)
-        return action_value
-
-class DQN(object):
-    def __init__(self):
-        self.eval_net = Net()
-
-    def choose_action(self, x):
-        x = torch.unsqueeze(torch.FloatTensor(x), 0)
-        action_values = self.eval_net(x)
-        action = torch.max(action_values, 1)[1].squeeze().data.cpu().numpy()
-        action = action[0]
-        return action
-
-# 初始化Unity環境和Gym Wrapper
-unity_env = UnityEnvironment(file_name="C:/Users/user/Desktop/Games/9_20")
-env = UnityToGymWrapper(unity_env, allow_multiple_obs=True)
-
-# 訓練參數
-N_ACTIONS = env.action_space.n
-N_STATES = env.observation_space[0].shape[0]
-
-# 創建 DQN 物件
-dqn = DQN()
-
-# 載入模型
-model_path = "C:/Users/user/Desktop/Project/models/dqn_eval_net_episode_400.pth"
-dqn.eval_net.load_state_dict(torch.load(model_path))
-dqn.eval_net.eval()  # 設定為評估模式
-
-#測試
-for i_episode in range(10):  # 測試10個 episode
-    s = env.reset()
-    episode_reward = 0
-    step_count = 0
-
-    while True:
-        env.render()
-        a = dqn.choose_action(s)
-        print(a)
-        s_, r, done, info = env.step(a)
-        step_count += 1
-        episode_reward += r
-
-        if done:
-            print(f'Episode {i_episode} finished with reward: {episode_reward}')
-            break
+# 定义DQN网络
+class DQN(nn.Module):
+    def __init__(self, input_shape, n_actions):
+        super(DQN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
         
-        s = s_ 
+        conv_out_size = self._get_conv_out(input_shape)
+        
+        self.fc1 = nn.Linear(conv_out_size, 512)
+        self.fc2 = nn.Linear(512, n_actions)
+    
+    def _get_conv_out(self, shape):
+        o = self.conv1(torch.zeros(1, 1, *shape))
+        o = self.conv2(o)
+        o = self.conv3(o)
+        return int(np.prod(o.size()))
+    
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
 
-env.close()
+# 主程序：加载模型并运行
+if __name__ == "__main__":
+    # 初始化Unity环境
+    unity_env = UnityEnvironment(file_name="./game", no_graphics=False)
+    env = UnityToGymWrapper(unity_env, flatten_branched=True, allow_multiple_obs=True)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # 定义状态空间和动作空间大小
+    state_shape = (13, 13)
+    n_actions = 4  # 上下左右
+    
+    # 初始化网络并加载已训练好的模型
+    policy_net = DQN(state_shape, n_actions).to(device)
+    policy_net.load_state_dict(torch.load("models/dqn_maze_model.pth"))
+    policy_net.eval()  # 设置为评估模式，避免更新模型参数
+    for param_tensor in policy_net.state_dict():
+        print(param_tensor, "\t", policy_net.state_dict()[param_tensor])
+    # 进行推理（不需要训练）
+    for episode in range(10):  # 运行10个测试episode
+        state = env.reset()
+        state = obs_to_array(state)
+        state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
+        done = False
+        total_reward = 0
+        
+        while not done:
+            with torch.no_grad():
+                output = policy_net(state)
+                print("Model output:", output)
+                # 选择模型认为最优的动作
+                action = policy_net(state).max(1)[1].view(1, 1).item()
+                print(action)
+
+            
+            # 执行动作
+            next_state, reward, done, _ = env.step(action)
+            next_state = obs_to_array(next_state)
+            next_state = torch.tensor(next_state, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
+            state = next_state
+            total_reward += reward
+        
+        print(f"Episode {episode + 1}: Total Reward = {total_reward}")
+    
+    env.close()
