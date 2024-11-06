@@ -1,6 +1,6 @@
+dqn_maze_model.pth
 venv/
 models/
 runs/
 
 __pycache__/
-dqn_maze_model.pth
