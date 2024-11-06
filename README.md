@@ -1,4 +1,4 @@
-# Reinforcment learning for Unity maze game
+# Reinforcement learning for Unity maze game
 
 # 簡介  
 使用DQN演算法訓練AI走迷宮
