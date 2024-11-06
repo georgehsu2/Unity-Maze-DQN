@@ -4,8 +4,9 @@ import time
 # 設定裝置為 GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 import torch
-print(torch.cuda.is_available())  # 應該輸出 True
-print(torch.version.cuda)         # 應顯示 CUDA 版本
+print(torch.cuda.is_available())
+print(torch.version.cuda)
+
 # 檢查是否成功使用 GPU
 if device.type == "cuda":
     print("正在使用 GPU 計算")
