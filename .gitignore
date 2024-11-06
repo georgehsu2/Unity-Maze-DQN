@@ -2,4 +2,4 @@ venv/
 models/
 runs/
 
-__pycache__/test.cpython-37.pyc
+__pycache__/
