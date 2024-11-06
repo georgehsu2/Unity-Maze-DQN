@@ -5,7 +5,7 @@ import numpy as np
 from mlagents_envs.envs.unity_gym_env import UnityToGymWrapper
 from mlagents_envs.environment import UnityEnvironment
 
-# 定义obs_to_array函数
+# 把gym的觀察空間轉成迷宮array
 def obs_to_array(coordinates):
     if isinstance(coordinates, list) and len(coordinates) == 1:
         coordinates = coordinates[0]
@@ -38,7 +38,7 @@ def obs_to_array(coordinates):
     
     return maze
 
-# 定义DQN网络
+# 模型架構
 class DQN(nn.Module):
     def __init__(self, input_shape, n_actions):
         super(DQN, self).__init__()
@@ -65,25 +65,24 @@ class DQN(nn.Module):
         x = F.relu(self.fc1(x))
         return self.fc2(x)
 
-# 主程序：加载模型并运行
 if __name__ == "__main__":
-    # 初始化Unity环境
+    # 初始化遊戲環境
     unity_env = UnityEnvironment(file_name="./game", no_graphics=False)
     env = UnityToGymWrapper(unity_env, flatten_branched=True, allow_multiple_obs=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    # 定义状态空间和动作空间大小
+    # 定義狀態空間、動作空間大小
     state_shape = (13, 13)
-    n_actions = 4  # 上下左右
+    n_actions = 4 # 上下左右
     
-    # 初始化网络并加载已训练好的模型
+    # 初始化網路、載入訓練好的模型
     policy_net = DQN(state_shape, n_actions).to(device)
     policy_net.load_state_dict(torch.load("models/dqn_maze_model.pth"))
-    policy_net.eval()  # 设置为评估模式，避免更新模型参数
+    policy_net.eval()  # 設置為評估模式，避免更新模型參數
     for param_tensor in policy_net.state_dict():
         print(param_tensor, "\t", policy_net.state_dict()[param_tensor])
-    # 进行推理（不需要训练）
-    for episode in range(10):  # 运行10个测试episode
+
+    for episode in range(10):  # 運行10個測試episode
         state = env.reset()
         state = obs_to_array(state)
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)
@@ -93,13 +92,12 @@ if __name__ == "__main__":
         while not done:
             with torch.no_grad():
                 output = policy_net(state)
-                print("Model output:", output)
-                # 选择模型认为最优的动作
+                print("Model output:", output) # 模型輸出
                 action = policy_net(state).max(1)[1].view(1, 1).item()
-                print(action)
+                print(action)# 模型選擇的動作
 
             
-            # 执行动作
+            # 執行模型選擇的動作
             next_state, reward, done, _ = env.step(action)
             next_state = obs_to_array(next_state)
             next_state = torch.tensor(next_state, dtype=torch.float32, device=device).unsqueeze(0).unsqueeze(0)

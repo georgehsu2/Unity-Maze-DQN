@@ -3,3 +3,4 @@ models/
 runs/
 
 __pycache__/
+dqn_maze_model.pth/
