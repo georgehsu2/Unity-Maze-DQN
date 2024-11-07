@@ -1,5 +1,5 @@
 # Reinforcement learning for Unity maze game
-
+![image](https://github.com/georgehsu2/Unity-Maze-DQN/blob/main/maze.png)
 # 簡介  
 使用DQN演算法訓練AI走迷宮
 
