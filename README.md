@@ -27,7 +27,7 @@ Run run_model.py
 使用DQN演算法訓練AI走迷宮
 
 # 遊戲環境基本資料:  
-動作空間: 上下左右  
+動作空間: 上,下,左,右  
 觀察空間: 所有物件包括腳色、牆壁、終點的座標(在main.py的obs_to_array中轉換成13x13的迷宮array)
 
 # Reward Function 設定:  
